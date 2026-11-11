@@ -56,9 +56,10 @@
     padding:5px 12px;border-radius:999px;pointer-events:none;letter-spacing:.2px;display:none
   }
 
-  /* 画布浮层按钮组 */
+  /* 画布浮层按钮组（左侧竖排） */
   .tools{
-    position:absolute;left:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 160px);z-index:3
+    position:absolute;left:12px;top:50%;transform:translateY(-50%);
+    display:flex;flex-direction:column;gap:6px;align-items:stretch;z-index:3
   }
   .tool{
     display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:11.5px;font-weight:600;letter-spacing:.2px;
@@ -77,6 +78,26 @@
   }
   .tool.on i.ind{opacity:1;box-shadow:0 0 7px currentColor}
   .tool .ss{font-size:9.5px;font-weight:700;opacity:.62;letter-spacing:.4px}
+
+  /* 平面星图浮动窗口 */
+  .planwin{
+    position:absolute;right:12px;top:52px;z-index:4;display:none;
+    background:rgba(6,12,24,.9);border:1px solid rgba(148,163,184,.3);border-radius:12px;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    box-shadow:0 12px 34px -14px rgba(0,0,0,.85);overflow:hidden
+  }
+  .planhead{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:7px 10px;font-size:11.5px;font-weight:650;color:#C9D8EE;cursor:move;user-select:none;
+    border-bottom:1px solid rgba(148,163,184,.18)
+  }
+  .planhead b{color:#7DD3FC;font-weight:700}
+  .planhead button{
+    all:unset;cursor:pointer;width:18px;height:18px;line-height:15px;text-align:center;border-radius:6px;
+    color:#94A3B8;font-size:13px
+  }
+  .planhead button:hover{background:rgba(148,163,184,.18);color:#fff}
+  #planCv{display:block}
 
   .panel{min-height:0;overflow-y:auto;padding-right:2px}
   .panel::-webkit-scrollbar{width:8px}
@@ -203,12 +224,26 @@
         <button class="tool" id="tBelow" title="显示 / 隐藏地平面以下的天球部分"><i class="ind"></i>地平线下</button>
         <button class="tool" id="tSimple" title="简化星空：只显示 1 等以上的亮星"><i class="ind"></i>简化星空<span class="ss" id="simpleTag"></span></button>
         <button class="tool" id="tNames" title="显示 / 隐藏主要星体名称"><i class="ind"></i>星体名称</button>
+        <button class="tool" id="tCns" title="显示 / 隐藏主要星座名称（当季高亮）"><i class="ind"></i>星座名称</button>
         <button class="tool" id="tPaths" title="显示 / 隐藏主要星体的周日运动圈"><i class="ind"></i>亮星周日圈</button>
+        <button class="tool" id="tFar" title="隐藏观测者背后（面向反方向半边天空）的星轨，画面更清爽"><i class="ind"></i>隐藏后方星轨</button>
+        <button class="tool" id="tPlan" title="平面星图：观测者面向的半边天球及其星轨（浮动窗口）"><i class="ind"></i>平面图</button>
         <button class="tool" id="tLabelsOn" title="把所有开关恢复默认">重置开关</button>
       </div>
       <div class="latbadge" id="latBadge">φ = 40.0°N</div>
       <div class="hint">拖动旋转视角 · 滚轮缩放</div>
       <div class="xraytip" id="xrayTip">已显示地平面以下 · 虚线为地下部分的周日轨迹</div>
+      <div class="planwin" id="planWin">
+        <div class="planhead" id="planHead">
+          <span>平面星图 · 面向<b id="planFace">北</b></span>
+          <span style="display:flex;gap:2px">
+            <button id="planZoom" title="放大窗口">＋</button>
+            <button id="planReset" title="还原大小与位置">⤢</button>
+            <button id="planClose" title="关闭">×</button>
+          </span>
+        </div>
+        <canvas id="planCv"></canvas>
+      </div>
     </div>
 
     <aside class="panel">
@@ -221,6 +256,19 @@
         <div class="ticks"><span>90°S</span><span>0° 赤道</span><span>90°N</span></div>
         <div class="presets" id="presets"></div>
         <div class="note" id="poleHint" style="margin-top:11px"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-h"><span class="card-t">四季 · 观察方向</span><span class="pill" id="seasonPill">春</span></div>
+        <div class="presets" id="seasons"></div>
+        <div class="speedrow" style="margin-top:12px">
+          <span>观察方位</span>
+          <input type="range" id="face" min="0" max="360" step="5" value="0" />
+          <span id="faceTxt" style="width:58px;text-align:right;font-variant-numeric:tabular-nums">0° 北</span>
+        </div>
+        <div class="note" style="margin-top:9px">
+          季节 = 当季晚上 20–21 时的星空，小人也会换上当季衣服；观察方位角：0°=北、90°=东、180°=南、270°=西，小人与箭头会转向该方位。
+        </div>
       </section>
 
       <section class="card">
@@ -274,7 +322,7 @@
         </div>
         <div class="sep"></div>
         <div class="note">
-          画面左上角的按钮：<b>地平线下</b> 显示地平面以下的天球（看恒隐星）；<b>简化星空</b> 只留 1 等以上亮星；<b>星体名称</b> 切换主要星名；<b>亮星周日圈</b> 显示每颗主要亮星自身的周日运动圈。
+          画面左上角的按钮：<b>地平线下</b> 显示地平面以下的天球（看恒隐星）；<b>简化星空</b> 只留 1 等以上亮星；<b>星体名称 / 星座名称</b> 切换主要星名与星座名（当季星座高亮）；<b>亮星周日圈</b> 显示每颗主要亮星自身的周日运动圈。
         </div>
         <div class="speedrow" style="margin-top:10px">
           <span>转速</span>
@@ -320,6 +368,8 @@ const ctx = cv.getContext('2d');
 /* ---------------- state ---------------- */
 const QS = new URLSearchParams(location.search);
 const SIMPLE_MAG = 1.0;        // 简化星空阈值：1 等以上（全天约 16 颗）
+const SEASON_T = { spring:165, summer:270, autumn:15, winter:82 };   // 当季 20–21 时中天赤经
+const DIR8 = ['北','东北','东','东南','南','西南','西','西北'];
 const state = {
   lat: (() => {
     const q = parseFloat(QS.get('lat'));
@@ -331,11 +381,21 @@ const state = {
   sphere: true,
   lines: true,
   names: QS.get('names') !== '0',
+  cns: QS.get('cns') !== '0',
+  season: ['spring','summer','autumn','winter'].includes(QS.get('season')) ? QS.get('season') : 'spring',
+  face: (() => {
+    const q = parseFloat(QS.get('face'));
+    return isFinite(q) ? ((q % 360) + 360) % 360 : null;
+  })(),
   simple: QS.get('simple') === '1',
   starPaths: QS.get('paths') === '1',
+  hideFar: QS.get('far') === '1',
+  plan: QS.get('plan') === '1',
   xray: QS.get('xray') === '1',
   show: { circ: true, rise: true, never: true }
 };
+state.t = SEASON_T[state.season];
+if (state.face === null) state.face = state.lat >= 0 ? 0 : 180;
 const cam = { az: 206, el: 23, dist: 2.85, fov: 40 };
 
 let W = 900, H = 620, DPR = 1;
@@ -371,6 +431,19 @@ const NM = SNAMES.map(([ra, dec, name]) => {
   const a = ra * DEG, d = dec * DEG, cd = Math.cos(d);
   return { e: [cd*Math.cos(a), cd*Math.sin(a), Math.sin(d)], name, dec };
 });
+// 主要星座中心（赤经°, 赤纬°, 名称, 最佳观赏季节）
+const CNS = [
+  [165,55,'大熊座','all'],[225,75,'小熊座','all'],[15,60,'仙后座','autumn'],[45,45,'英仙座','winter'],
+  [75,40,'御夫座','winter'],[65,15,'金牛座','winter'],[82,0,'猎户座','winter'],[105,22,'双子座','winter'],
+  [100,-25,'大犬座','winter'],[50,-30,'波江座','winter'],[152,15,'狮子座','spring'],[195,0,'室女座','spring'],
+  [215,30,'牧夫座','spring'],[150,-60,'船底座','spring'],[247,-30,'天蝎座','summer'],[285,-25,'人马座','summer'],
+  [278,35,'天琴座','summer'],[298,2,'天鹰座','summer'],[307,40,'天鹅座','summer'],[315,-20,'摩羯座','summer'],
+  [345,20,'飞马座','autumn'],[10,37,'仙女座','autumn'],[335,-10,'宝瓶座','autumn'],[187,-60,'南十字座','autumn']
+];
+const eqVec = (raDeg, decDeg) => {
+  const a = raDeg*DEG, d = decDeg*DEG, cd = Math.cos(d);
+  return [cd*Math.cos(a), cd*Math.sin(a), Math.sin(d)];
+};
 
 /* ---------------- camera ---------------- */
 let eye, F, Rv, Uv, K, zMin, zMax, cx, cy;
@@ -481,19 +554,14 @@ function addTraj(pts, c, w, a, per = 0.05, duty = 0.45) {
     } else parts.push([A, B]);
   }
   let acc = 0;
+  const hideFar = state.hideFar;
   for (const [P0, P1] of parts) {
-    const L = Math.hypot(P1[0]-P0[0], P1[1]-P0[1], P1[2]-P0[2]);
-    if (L < 1e-9) continue;
-    if (P0[2] >= 0) {
-      pushSeg(P0, P1, false, c, w, a);
-    } else {
-      const n = Math.max(1, Math.ceil(L / (per/3)));
-      for (let j = 0; j < n; j++) {
-        const ph = ((acc + L*(j+0.5)/n) / per) % 1;
-        if (ph < duty) pushSeg(lerp3(P0,P1,j/n), lerp3(P0,P1,(j+1)/n), true, c, w, a*0.95);
-      }
+    if (P0[2] <= 0) continue;                   // 地平线以下不画：轨道止于地平面
+    if (hideFar) {                              // 隐藏观测者背后（面向反方向半边天空）的轨迹
+      const fxw = Math.sin(state.face*DEG), fyw = Math.cos(state.face*DEG);
+      if (((P0[0]+P1[0])*0.5)*fxw + ((P0[1]+P1[1])*0.5)*fyw < 0) continue;
     }
-    acc += L;
+    pushSeg(P0, P1, false, c, w, a);
   }
 }
 
@@ -732,19 +800,39 @@ function drawGround() {
   }
 }
 
-/* ---------------- 观测者小人（面向天极） ---------------- */
+/* ---------------- 观测者小人（面向观察方位，按季节换装） ---------------- */
+const CLOTHES = {
+  spring: { c1:'#6EE7B7', c2:'#059669', collar:'#047857', arm:'#059669', hand:'#FFDDBC', puffy:false },
+  summer: { c1:'#FDE68A', c2:'#FBBF24', collar:'#D97706', arm:'skin',     hand:'skin',     puffy:false },
+  autumn: { c1:'#FBBF24', c2:'#F59E0B', collar:'#C2410C', arm:'#F59E0B', hand:'#FFDDBC',  puffy:false },
+  winter: { c1:'#BFDBFE', c2:'#3B82F6', collar:'#1E40AF', arm:'#3B82F6', hand:'#EF4444',  puffy:true, scarf:true, hat:true }
+};
+
 function drawPerson() {
   const base = proj([0, 0, 0.002]);
   if (base[2] < NEAR) return;
   const zc = dot(sub([0,0,0], eye), F);
-  let h = (K / zc) * 0.16;                    // 身高 ≈ 世界尺度 0.16
-  h = Math.max(12, Math.min(90, h));
-  const fwd = state.lat >= 0 ? 1 : -1;        // 北半球面向天北极，南半球面向天南极
-  const q2 = proj([0, fwd*0.35, 0.002]);
-  let fx = q2[0]-base[0], fy = q2[1]-base[1];
+  let h = (K / zc) * 0.17;                    // 身高 ≈ 世界尺度 0.17
+  h = Math.max(14, Math.min(110, h));
+  const fa = state.face * DEG;                // 观察方位角：0°=北，90°=东
+  const Fw = [Math.sin(fa), Math.cos(fa)];    // 面向（世界坐标，北=+Y 东=+X）
+  const Rw = [Fw[1], -Fw[0]];                 // 右手侧
+  const qF = proj([Fw[0]*0.35, Fw[1]*0.35, 0.002]);
+  let fx = qF[0]-base[0], fy = qF[1]-base[1];
   const fl = Math.hypot(fx, fy) || 1;
   fx /= fl; fy /= fl;
-  const px = -fy, py = fx;                    // 屏面垂直方向
+  const qR = proj([Rw[0]*0.35, Rw[1]*0.35, 0.002]);
+  let rx = qR[0]-base[0], ry = qR[1]-base[1];
+  let rl = Math.hypot(rx, ry);
+  if (rl < 0.04) { rx = -fy; ry = fx; rl = Math.hypot(rx, ry) || 1; }  // 正对/背对时右向沿视线，退化取屏幕垂直
+  rx /= rl; ry /= rl;
+  // 与相机的相对朝向：front=1 正对镜头，-1 背对镜头
+  const cl = Math.hypot(eye[0], eye[1]) || 1;
+  const front = (Fw[0]*eye[0] + Fw[1]*eye[1]) / cl;
+  const bw = 0.62 + 0.38 * Math.abs(front);   // 身体水平压缩：侧身显窄
+  const CL = CLOTHES[state.season] || CLOTHES.autumn;
+  const SKIN = '#F3BE93';
+  const LP = (u, f, v) => [u*h*rx + f*h*fx, u*h*ry + f*h*fy - v*h];   // 局部(右,前,上) → 屏幕
 
   ctx.save();
   ctx.translate(base[0], base[1]);
@@ -753,47 +841,153 @@ function drawPerson() {
 
   // 影子
   ctx.beginPath();
-  ctx.ellipse(0, 0, h*0.24, h*0.085, 0, 0, 6.2832);
+  ctx.ellipse(fx*h*0.04, fy*h*0.04, h*0.26, h*0.09, Math.atan2(ry, rx), 0, 6.2832);
   ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
 
-  // 腿
-  ctx.strokeStyle = '#2B4C7E'; ctx.lineWidth = h*0.06;
+  // 腿（前后脚沿面向方向错开，体现转身）
+  ctx.strokeStyle = '#3A5A8C'; ctx.lineWidth = h*0.062;
+  for (const sgn of [-1, 1]) {
+    const hip = LP(sgn*0.05*bw, 0, 0.38), ft = LP(sgn*0.075*bw, sgn*0.045, 0.03);
+    ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(ft[0], ft[1]); ctx.stroke();
+  }
+  // 鞋
+  ctx.fillStyle = '#23272E';
+  for (const sgn of [-1, 1]) {
+    const ft = LP(sgn*0.075*bw, sgn*0.045 + 0.035, 0.015);
+    ctx.beginPath();
+    ctx.ellipse(ft[0], ft[1], h*0.055, h*0.026, Math.atan2(fy, fx), 0, 6.2832);
+    ctx.fill();
+  }
+
+  // 上衣（胶囊身 + 肩部椭圆，侧身压窄）
+  const gt = ctx.createLinearGradient(-h*0.12, 0, h*0.12, 0);
+  gt.addColorStop(0, CL.c1); gt.addColorStop(0.55, CL.c2); gt.addColorStop(1, CL.collar);
+  ctx.strokeStyle = gt; ctx.lineWidth = h*(CL.puffy ? 0.23 : 0.20) * (0.75 + 0.25*bw);
+  ctx.beginPath(); ctx.moveTo(0, -h*0.71); ctx.lineTo(0, -h*0.40); ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(-h*0.055, -h*0.34); ctx.lineTo(-h*0.075, 0);
-  ctx.moveTo( h*0.055, -h*0.34); ctx.lineTo( h*0.075, 0);
-  ctx.stroke();
+  ctx.ellipse(0, -h*0.695, h*0.115*bw, h*0.05, 0, 0, 6.2832);
+  ctx.fillStyle = CL.c2; ctx.fill();
+  // 衣领
+  ctx.strokeStyle = CL.collar; ctx.lineWidth = h*0.028;
+  ctx.beginPath(); ctx.arc(0, -h*0.70, h*0.085*bw, Math.PI*1.15, Math.PI*1.85); ctx.stroke();
+  // 门襟（正面时可见）
+  if (front > 0.25) {
+    ctx.strokeStyle = CL.collar; ctx.lineWidth = h*0.012;
+    ctx.beginPath(); ctx.moveTo(0, -h*0.665); ctx.lineTo(0, -h*0.42); ctx.stroke();
+  }
 
-  // 身体
-  ctx.strokeStyle = '#FB923C'; ctx.lineWidth = h*0.17;
-  ctx.beginPath(); ctx.moveTo(0, -h*0.70); ctx.lineTo(0, -h*0.36); ctx.stroke();
+  // 手臂 + 手
+  const armC = CL.arm === 'skin' ? SKIN : CL.arm;
+  const handC = CL.hand === 'skin' ? SKIN : CL.hand;
+  ctx.strokeStyle = armC; ctx.lineWidth = h*(CL.puffy ? 0.075 : 0.052);
+  for (const sgn of [-1, 1]) {
+    const sh = LP(sgn*0.105*bw, 0, 0.655), hd = LP(sgn*0.15*bw, sgn*0.02, 0.45);
+    ctx.beginPath(); ctx.moveTo(sh[0], sh[1]); ctx.lineTo(hd[0], hd[1]); ctx.stroke();
+    ctx.fillStyle = handC;
+    ctx.beginPath(); ctx.arc(hd[0], hd[1], h*0.030, 0, 6.2832); ctx.fill();
+  }
 
-  // 手臂
-  ctx.lineWidth = h*0.055;
-  ctx.beginPath();
-  ctx.moveTo(-h*0.02, -h*0.66); ctx.lineTo(-h*0.14, -h*0.44);
-  ctx.moveTo( h*0.02, -h*0.66); ctx.lineTo( h*0.14, -h*0.44);
-  ctx.stroke();
+  // 围巾（冬）
+  if (CL.scarf) {
+    const sn = LP(0, 0.02, 0.775);
+    ctx.fillStyle = '#EF4444';
+    ctx.beginPath(); ctx.ellipse(sn[0], sn[1], h*0.09*bw, h*0.04, 0, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = '#EF4444'; ctx.lineWidth = h*0.05;
+    const s1p = LP(0.03, 0.045, 0.755), s2p = LP(0.05, 0.06, 0.635);
+    ctx.beginPath(); ctx.moveTo(s1p[0], s1p[1]); ctx.lineTo(s2p[0], s2p[1]); ctx.stroke();
+  }
 
-  // 头
-  const hy = -h*0.855, hr = h*0.155;
+  // 脖子
+  ctx.strokeStyle = SKIN; ctx.lineWidth = h*0.05;
+  ctx.beginPath(); ctx.moveTo(0, -h*0.80); ctx.lineTo(0, -h*0.74); ctx.stroke();
+
+  // 头（肤色径向渐变 + 耳朵，侧身时双耳可见）
+  const hy = -h*0.90, hr = h*0.165;
+  if (Math.abs(front) < 0.75) {
+    ctx.fillStyle = SKIN;
+    const eL = LP(-0.155, 0, 0.895), eR = LP(0.155, 0, 0.895);
+    ctx.beginPath(); ctx.arc(eL[0], eL[1], hr*0.18, 0, 6.2832); ctx.fill();
+    ctx.beginPath(); ctx.arc(eR[0], eR[1], hr*0.18, 0, 6.2832); ctx.fill();
+  }
   ctx.beginPath(); ctx.arc(0, hy, hr, 0, 6.2832);
-  ctx.fillStyle = '#FFDCB8'; ctx.fill();
-  ctx.lineWidth = h*0.02; ctx.strokeStyle = 'rgba(60,30,10,.55)'; ctx.stroke();
-  // 头发
-  ctx.beginPath();
-  ctx.arc(0, hy - hr*0.08, hr*0.98, Math.PI*1.05, Math.PI*1.95);
-  ctx.lineWidth = h*0.055; ctx.strokeStyle = '#4A3222'; ctx.stroke();
+  const gh = ctx.createRadialGradient(-hr*0.3, hy-hr*0.3, hr*0.15, 0, hy, hr*1.2);
+  gh.addColorStop(0, '#FFE9D0'); gh.addColorStop(1, '#EFB788');
+  ctx.fillStyle = gh; ctx.fill();
+  ctx.lineWidth = h*0.012; ctx.strokeStyle = 'rgba(100,55,20,.35)'; ctx.stroke();
 
-  // 眼睛：在面向方向的局部坐标系里画，双眼垂直于视线分布
-  ctx.save();
-  ctx.translate(0, hy);
-  ctx.rotate(Math.atan2(fy, fx));
-  ctx.fillStyle = '#2F2013';
-  ctx.beginPath(); ctx.arc(hr*0.32, -hr*0.22, hr*0.145, 0, 6.2832); ctx.fill();
-  ctx.beginPath(); ctx.arc(hr*0.32,  hr*0.22, hr*0.145, 0, 6.2832); ctx.fill();
-  ctx.restore();
+  // 头发 / 冬季毛线帽：正面露脸、侧面半遮、背面全覆盖
+  const hairC = CL.hat ? '#DC2626' : '#4A3222';
+  if (CL.hat) {
+    if (front < -0.35) {          // 背面：帽体全包
+      ctx.fillStyle = hairC;
+      ctx.beginPath(); ctx.arc(0, hy, hr*1.0, 0, 6.2832); ctx.fill();
+    } else {
+      ctx.fillStyle = hairC;
+      ctx.beginPath(); ctx.arc(0, hy - hr*0.05, hr*1.03, Math.PI, Math.PI*2.0);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#B91C1C'; ctx.lineWidth = hr*0.18;
+      ctx.beginPath(); ctx.arc(0, hy - hr*0.05, hr*1.0, Math.PI*1.08, Math.PI*1.92); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(fx*hr*0.15, hy - hr*1.08 + fy*hr*0.1, hr*0.16, 0, 6.2832);
+    ctx.fillStyle = '#F8FAFC'; ctx.fill();
+  } else if (front < -0.35) {
+    // 背面：后脑全覆盖
+    ctx.fillStyle = hairC;
+    ctx.beginPath(); ctx.arc(fx*hr*0.12, hy + fy*hr*0.08, hr*1.0, 0, 6.2832); ctx.fill();
+  } else {
+    // 正面 / 侧面：发盖 + 刘海偏向面向方向
+    ctx.fillStyle = hairC;
+    ctx.beginPath();
+    ctx.arc(fx*hr*0.08, hy - hr*0.10 + fy*hr*0.06, hr*1.0, Math.PI, Math.PI*2.0);
+    ctx.closePath(); ctx.fill();
+    if (front <= 0.35) {          // 侧面：补后脑发量
+      ctx.beginPath();
+      ctx.arc(-fx*hr*0.38, hy - hr*0.02 - fy*hr*0.30, hr*0.68, 0, 6.2832);
+      ctx.fill();
+    }
+  }
 
-  // 面向天极的地面小箭头（站在身前，不压身体）
+  // 五官
+  if (front > 0.35) {
+    // 正面：双眼 + 眉 + 鼻 + 微笑
+    for (const sgn of [-1, 1]) {
+      const exx = sgn*hr*0.24, eyy = hy + hr*0.18;
+      ctx.beginPath(); ctx.arc(exx, eyy, hr*0.15, 0, 6.2832);
+      ctx.fillStyle = '#FFFFFF'; ctx.fill();
+      ctx.lineWidth = hr*0.028; ctx.strokeStyle = 'rgba(70,40,15,.35)'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(exx, eyy + hr*0.01, hr*0.068, 0, 6.2832);
+      ctx.fillStyle = '#2B1D10'; ctx.fill();
+      ctx.beginPath(); ctx.arc(exx + hr*0.02, eyy - hr*0.03, hr*0.024, 0, 6.2832);
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fill();
+      ctx.strokeStyle = '#4A3222'; ctx.lineWidth = hr*0.05;
+      ctx.beginPath(); ctx.arc(exx, eyy - hr*0.20, hr*0.16, Math.PI*1.15, Math.PI*1.85); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(160,82,45,.6)'; ctx.lineWidth = hr*0.045;
+    ctx.beginPath(); ctx.arc(0, hy + hr*0.26, hr*0.08, Math.PI*0.2, Math.PI*0.8); ctx.stroke();
+    ctx.strokeStyle = '#A0522D'; ctx.lineWidth = hr*0.065;
+    ctx.beginPath(); ctx.arc(0, hy + hr*0.34, hr*0.17, Math.PI*0.15, Math.PI*0.85); ctx.stroke();
+  } else if (front >= -0.35) {
+    // 侧面：单眼 + 侧脸鼻尖 + 半侧微笑
+    const exx = fx*hr*0.40, eyy = hy + hr*0.18 + fy*hr*0.08;
+    ctx.beginPath(); ctx.arc(exx, eyy, hr*0.14, 0, 6.2832);
+    ctx.fillStyle = '#FFFFFF'; ctx.fill();
+    ctx.lineWidth = hr*0.028; ctx.strokeStyle = 'rgba(70,40,15,.35)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(exx + fx*hr*0.03, eyy, hr*0.062, 0, 6.2832);
+    ctx.fillStyle = '#2B1D10'; ctx.fill();
+    ctx.strokeStyle = '#4A3222'; ctx.lineWidth = hr*0.05;
+    ctx.beginPath(); ctx.arc(exx - fx*hr*0.06, eyy - hr*0.20, hr*0.14, Math.PI*1.1, Math.PI*1.9); ctx.stroke();
+    // 鼻尖沿面向方向凸出
+    ctx.beginPath();
+    ctx.moveTo(fx*hr*0.55, fy*hr*0.55 + hy + hr*0.06);
+    ctx.lineTo(fx*hr*1.00, fy*hr*1.00 + hy + hr*0.20);
+    ctx.lineTo(fx*hr*0.70, fy*hr*0.70 + hy + hr*0.30);
+    ctx.closePath();
+    ctx.fillStyle = '#EFB788'; ctx.fill();
+    ctx.strokeStyle = '#A0522D'; ctx.lineWidth = hr*0.055;
+    ctx.beginPath(); ctx.arc(fx*hr*0.60, fy*hr*0.60 + hy + hr*0.40, hr*0.12, Math.PI*0.15, Math.PI*0.85); ctx.stroke();
+  }
+
+  // 面向观察方位的地面小箭头（站在身前，不压身体）
   const s1 = 0.42, s2 = 0.62;
   const a1x = fx*h*s1, a1y = fy*h*s1;
   const a2x = fx*h*s2, a2y = fy*h*s2;
@@ -863,16 +1057,16 @@ function draw() {
     ctx.beginPath(); ctx.arc(q0[0], q0[1], rr*1.5, 0, 6.2832); ctx.fill();
   }
 
-  // 地平线以上
-  strokeSegs(segsSky);
-  drawStars('above');
-
-  // 地面（不透明绿色）
+  // 地面（不透明绿色）——先画：地平线以上的天体不会被地面盘遮挡
   ctx.globalAlpha = state.xray ? 0.90 : 1;
   drawGround();
   ctx.globalAlpha = 1;
 
-  // 地面上的线索
+  // 地平线以上的天空线与星（远侧低空弧段会自然落在地面盘上方）
+  strokeSegs(segsSky);
+  drawStars('above');
+
+  // 地平圈描边与刻度（压在天体线之上，保持边缘清晰）
   strokeSegs(segsGround);
 
   // 地平线以下（透视模式）
@@ -897,11 +1091,33 @@ function draw() {
   // 观测者小人
   drawPerson();
 
-  // 主要星体名称
+  // 方位字屏幕位置（供名称避让）
   const compassXY = [[0],[90],[180],[270]].map(([az]) => {
     const a = az*DEG;
     return proj([Math.sin(a)*0.90, Math.cos(a)*0.90, 0]);
   });
+
+  // 主要星座名称（当季高亮）
+  if (state.cns) {
+    for (const [ra, dec, name, sn] of CNS) {
+      const P = eqToHor(eqVec(ra, dec));
+      const below = P[2] < 0;
+      if (below && !state.xray) continue;
+      const q = proj(P);
+      if (q[2] < NEAR) continue;
+      if (below && compassXY.some(c => c[2] > NEAR && Math.hypot(c[0]-q[0], c[1]-q[1]) < 34)) continue;
+      const hot = sn === state.season;
+      const color = below ? '#5E7189' : hot ? '#FCD34D' : '#8FA6C4';
+      // 星座中心小标记
+      ctx.globalAlpha = below ? 0.45 : 1;
+      ctx.beginPath(); ctx.arc(q[0], q[1], hot ? 2.6 : 2.0, 0, 6.2832);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.globalAlpha = 1;
+      labels.push({ x: q[0]+6, y: q[1]-7, text: name, color, size: hot ? 12 : 10.5, weight: hot ? 700 : 500, z: q[2] });
+    }
+  }
+
+  // 主要星体名称
   if (state.names) {
     for (const s of NM) {
       const P = eqToHor(s.e);
@@ -1026,14 +1242,21 @@ document.getElementById('cPlay').addEventListener('change', e => state.playing =
 const tBelow  = document.getElementById('tBelow');
 const tSimple = document.getElementById('tSimple');
 const tNames  = document.getElementById('tNames');
+const tCns    = document.getElementById('tCns');
 const tPaths  = document.getElementById('tPaths');
+const tFar    = document.getElementById('tFar');
+const tPlan   = document.getElementById('tPlan');
 const simpleTag = document.getElementById('simpleTag');
 
 function syncTools() {
   tBelow.classList.toggle('on', state.xray);
   tSimple.classList.toggle('on', state.simple);
   tNames.classList.toggle('on', state.names);
+  tCns.classList.toggle('on', state.cns);
   tPaths.classList.toggle('on', state.starPaths);
+  tFar.classList.toggle('on', state.hideFar);
+  tPlan.classList.toggle('on', state.plan);
+  document.getElementById('planWin').style.display = state.plan ? 'block' : 'none';
   simpleTag.textContent = state.simple ? '≤' + SIMPLE_MAG + '等' : '';
   xrayTip.style.display = state.xray ? 'block' : 'none';
   updateReadout();
@@ -1042,10 +1265,221 @@ function syncTools() {
 tBelow.onclick  = () => { state.xray = !state.xray; syncTools(); };
 tSimple.onclick = () => { state.simple = !state.simple; syncTools(); };
 tNames.onclick  = () => { state.names = !state.names; syncTools(); };
+tCns.onclick    = () => { state.cns = !state.cns; syncTools(); };
 tPaths.onclick  = () => { state.starPaths = !state.starPaths; syncTools(); };
-document.getElementById('tLabelsOn').onclick = () => {
-  state.xray = false; state.simple = false; state.names = true; state.starPaths = false; syncTools();
+function camBehindObserver() { cam.az = (state.face + 180) % 360; }   // 相机转到观测者背后，小人面向屏幕内
+tFar.onclick    = () => {
+  state.hideFar = !state.hideFar;
+  if (state.hideFar) camBehindObserver();
+  syncTools();
 };
+tPlan.onclick   = () => { state.plan = !state.plan; syncTools(); };
+document.getElementById('planClose').onclick = () => { state.plan = false; syncTools(); };
+document.getElementById('planZoom').onclick = () => {           // 放大窗口
+  planZoom = Math.min(2.2, planZoom * 1.35);
+  sizePlan();
+};
+document.getElementById('planReset').onclick = () => {          // 还原大小与位置
+  planZoom = 1;
+  sizePlan();
+  planWin.style.left = ''; planWin.style.top = ''; planWin.style.right = '';
+};
+document.getElementById('tLabelsOn').onclick = () => {
+  state.xray = false; state.simple = false; state.names = true; state.cns = true; state.starPaths = false; state.hideFar = false; syncTools();
+};
+
+/* --- 平面星图浮动窗（拖动 + 渲染） --- */
+const planWin = document.getElementById('planWin');
+const planCv  = document.getElementById('planCv');
+const planFaceEl = document.getElementById('planFace');
+const pctx = planCv.getContext('2d');
+const PLAN0 = { w: 440, h: 250 };              // 基准尺寸：水平轴加宽，穹顶更扁
+let planZoom = Math.min(2.2, Math.max(1, parseFloat(QS.get('planzoom')) || 1)), PW = PLAN0.w, PH = PLAN0.h;
+function sizePlan() {
+  PW = Math.round(PLAN0.w * planZoom);
+  PH = Math.round(PLAN0.h * planZoom);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  planCv.style.width = PW + 'px'; planCv.style.height = PH + 'px';
+  planCv.width = PW * dpr; planCv.height = PH * dpr;
+  pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  planWin.style.width = (PW + 2) + 'px';
+}
+sizePlan();
+(() => {   // 标题栏拖动
+  let dragP = null;
+  const head = document.getElementById('planHead');
+  head.addEventListener('pointerdown', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    const r = planWin.getBoundingClientRect(), pr = planWin.parentElement.getBoundingClientRect();
+    dragP = { dx: e.clientX - r.left, dy: e.clientY - r.top, pr };
+    head.setPointerCapture(e.pointerId);
+  });
+  head.addEventListener('pointermove', e => {
+    if (!dragP) return;
+    const l = e.clientX - dragP.dx - dragP.pr.left, t = e.clientY - dragP.dy - dragP.pr.top;
+    planWin.style.left = Math.max(4, Math.min(dragP.pr.width - planWin.offsetWidth - 4, l)) + 'px';
+    planWin.style.top  = Math.max(4, Math.min(dragP.pr.height - 40, t)) + 'px';
+    planWin.style.right = 'auto';
+  });
+  head.addEventListener('pointerup', () => dragP = null);
+})();
+
+function drawPlan() {
+  planFaceEl.textContent = DIR8[Math.round(state.face/45) % 8] + ' ' + Math.round(state.face) + '°';
+  const Wp = PW, Hp = PH, mL = 10, mR = 10, mT = 16, mB = 16;
+  const fz = 1 + (planZoom - 1) * 0.75;          // 缩放时标注字号适度放大
+  const S = (Wp - mL - mR) / 2;                  // 水平半径：±90° 方位铺满
+  const Hy = Hp - mB;                            // 地平线 y
+  const cy0 = Hy, cxp = Wp / 2;
+  const P = (relDeg, alt) => {
+    const a = alt * DEG;
+    return [cxp + Math.sin(relDeg*DEG) * Math.cos(a) * S, cy0 - Math.sin(a) * (Hp - mT - mB)];
+  };
+  pctx.clearRect(0, 0, Wp, Hp);
+  // 背景
+  pctx.fillStyle = '#050B16';
+  pctx.fillRect(0, 0, Wp, Hp);
+  // 网格：高度线 30/60° + 方位线 ±45/90
+  pctx.strokeStyle = 'rgba(125,211,252,.12)'; pctx.lineWidth = 1;
+  for (const alt of [30, 60]) {
+    pctx.beginPath();
+    for (let A = -90; A <= 90; A += 3) { const q = P(A, alt); A === -90 ? pctx.moveTo(q[0], q[1]) : pctx.lineTo(q[0], q[1]); }
+    pctx.stroke();
+  }
+  for (const A of [-45, 0, 45]) {
+    pctx.beginPath();
+    for (let alt = 0; alt <= 90; alt += 3) { const q = P(A, alt); alt === 0 ? pctx.moveTo(q[0], q[1]) : pctx.lineTo(q[0], q[1]); }
+    pctx.stroke();
+  }
+  // 地平线
+  pctx.strokeStyle = 'rgba(74,222,128,.85)'; pctx.lineWidth = 1.6;
+  pctx.beginPath(); pctx.moveTo(mL - 4, Hy); pctx.lineTo(Wp - mR + 4, Hy); pctx.stroke();
+  // 方位标注（左/中/右 = 面向 ±90° / 0°）
+  pctx.font = `700 ${(10.5*fz).toFixed(1)}px ui-sans-serif, "PingFang SC", "Microsoft YaHei", sans-serif`;
+  pctx.textAlign = 'center';
+  const azL = ((state.face - 90) % 360 + 360) % 360, azR = (state.face + 90) % 360;
+  pctx.fillStyle = '#86EFAC';
+  pctx.fillText(DIR8[Math.round(azL/45) % 8], mL + 10, Hy + 12);
+  pctx.fillText(DIR8[Math.round(state.face/45) % 8], cxp, Hy + 12);
+  pctx.fillText(DIR8[Math.round(azR/45) % 8], Wp - mR - 10, Hy + 12);
+  pctx.fillStyle = 'rgba(148,163,184,.75)';
+  pctx.font = `500 ${(9.5*fz).toFixed(1)}px ui-sans-serif, sans-serif`;
+  pctx.fillText('天顶', cxp + 16, mT + 2);
+
+  const fxw = Math.sin(state.face*DEG), fyw = Math.cos(state.face*DEG);
+  const toRel = (X, Y) => {           // 地平坐标(East,North) → 相对面向方位[-180,180]
+    let d = Math.atan2(X, Y) / DEG - state.face;
+    while (d > 180) d -= 360; while (d < -180) d += 360;
+    return d;
+  };
+
+  // 星轨：三类赤纬圈（受显示开关与后方隐藏控制）
+  for (let i = 0; i < SAMPLES.length; i++) {
+    const dec = SAMPLES[i];
+    const kind = classify(dec);
+    if (dec === 0 || !state.show[kind]) continue;
+    pctx.strokeStyle = kind === 'circ' ? C_CIRC : kind === 'never' ? C_NEVER : C_RISE;
+    pctx.lineWidth = 1.3; pctx.globalAlpha = 0.9;
+    pctx.beginPath();
+    let pen = false;
+    for (let h = 0; h <= 360; h += 2) {
+      const v = starVec(dec, h);
+      if (v[2] < 0 || (state.hideFar && v[0]*fxw + v[1]*fyw < 0)) { pen = false; continue; }
+      const rel = toRel(v[0], v[1]);
+      if (Math.abs(rel) > 90) { pen = false; continue; }
+      const q = P(rel, Math.asin(Math.max(-1, Math.min(1, v[2]))) / DEG);
+      pen ? pctx.lineTo(q[0], q[1]) : pctx.moveTo(q[0], q[1]);
+      pen = true;
+    }
+    pctx.stroke();
+    pctx.globalAlpha = 1;
+  }
+  // 亮星周日圈
+  if (state.starPaths) {
+    pctx.strokeStyle = '#E7EEF9'; pctx.lineWidth = 0.9; pctx.globalAlpha = 0.5;
+    for (const s of NM) {
+      const dec = Math.asin(Math.max(-1, Math.min(1, s.e[2]))) / DEG;
+      pctx.beginPath();
+      let pen = false;
+      for (let h = 0; h <= 360; h += 3) {
+        const v = starVec(dec, h);
+        if (v[2] < 0 || (state.hideFar && v[0]*fxw + v[1]*fyw < 0)) { pen = false; continue; }
+        const rel = toRel(v[0], v[1]);
+        if (Math.abs(rel) > 90) { pen = false; continue; }
+        const q = P(rel, Math.asin(Math.max(-1, Math.min(1, v[2]))) / DEG);
+        pen ? pctx.lineTo(q[0], q[1]) : pctx.moveTo(q[0], q[1]);
+        pen = true;
+      }
+      pctx.stroke();
+    }
+    pctx.globalAlpha = 1;
+  }
+
+  // 恒星星点（地平线上、面向半边）
+  const ct = Math.cos(state.t*DEG), stn = Math.sin(state.t*DEG);
+  const cp = Math.cos(state.lat*DEG), sp = Math.sin(state.lat*DEG);
+  pctx.fillStyle = '#FFFFFF';
+  for (let i = 0; i < NS; i++) {
+    const ex = EX[i], ey = EY[i], ez = EZ[i];
+    const hx = ex*ct + ey*stn, hy = ey*ct - ex*stn;
+    const X = -hy, Y = ez*cp - hx*sp, Z = ez*sp + hx*cp;
+    if (Z < 0.02) continue;
+    if (state.hideFar && X*fxw + Y*fyw < 0) continue;
+    const rel = toRel(X, Y);
+    if (Math.abs(rel) > 90) continue;
+    const alt = Math.asin(Math.max(-1, Math.min(1, Z))) / DEG;
+    const q = P(rel, alt);
+    const m = MG[i];
+    const r = m < 1.5 ? 1.7 : m < 2.5 ? 1.2 : m < 4 ? 0.85 : 0.55;
+    pctx.globalAlpha = m < 4 ? 0.95 : 0.6;
+    pctx.beginPath(); pctx.arc(q[0], q[1], r, 0, 6.2832); pctx.fill();
+  }
+  pctx.globalAlpha = 1;
+
+  // 当前时刻的示例星标记（与主视图一致）
+  for (let i = 0; i < SAMPLES.length; i++) {
+    const dec = SAMPLES[i];
+    if (dec === 0 || !state.show[classify(dec)]) continue;
+    const v = starVec(dec, state.t + i * 41);
+    if (v[2] < 0) continue;
+    const rel = toRel(v[0], v[1]);
+    if (Math.abs(rel) > 90) continue;
+    const q = P(rel, Math.asin(Math.max(-1, Math.min(1, v[2]))) / DEG);
+    pctx.beginPath(); pctx.arc(q[0], q[1], 3, 0, 6.2832);
+    pctx.fillStyle = classify(dec) === 'circ' ? C_CIRC : classify(dec) === 'never' ? C_NEVER : C_RISE;
+    pctx.fill();
+    pctx.lineWidth = 1; pctx.strokeStyle = 'rgba(3,10,6,.85)'; pctx.stroke();
+  }
+}
+
+/* --- 四季与观察方位 --- */
+const SEASONS = [
+  { k:'spring', n:'春', t:165 },
+  { k:'summer', n:'夏', t:270 },
+  { k:'autumn', n:'秋', t:15 },
+  { k:'winter', n:'冬', t:82 }
+];
+const seasonBox = document.getElementById('seasons');
+const seasonPill = document.getElementById('seasonPill');
+SEASONS.forEach(s => {
+  const b = document.createElement('button');
+  b.textContent = s.n;
+  b.dataset.k = s.k;
+  b.title = '切换到' + s.n + '季星空（约 20–21 时）';
+  b.onclick = () => { state.season = s.k; state.t = s.t; syncSeason(); };
+  seasonBox.appendChild(b);
+});
+function syncSeason() {
+  seasonBox.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.k === state.season));
+  seasonPill.textContent = SEASONS.find(s => s.k === state.season).n;
+}
+const faceEl = document.getElementById('face');
+const faceTxt = document.getElementById('faceTxt');
+faceEl.addEventListener('input', e => {
+  state.face = ((parseFloat(e.target.value) % 360) + 360) % 360;
+  faceTxt.textContent = Math.round(state.face) + '° ' + DIR8[Math.round(state.face/45) % 8];
+  if (state.hideFar) camBehindObserver();     // 隐藏后方星轨开启时，相机实时跟随面向，保持小人面向屏幕内
+});
 document.getElementById('resetView').onclick = () => { cam.az = 206; cam.el = 21; cam.dist = 3.05; };
 
 /* --- 原理面板折叠（默认收起，记忆状态） --- */
@@ -1091,6 +1525,10 @@ window.addEventListener('resize', resize);
 if (window.ResizeObserver) new ResizeObserver(resize).observe(cv.parentElement);
 
 latEl.value = state.lat;
+faceEl.value = state.face;
+faceTxt.textContent = Math.round(state.face) + '° ' + DIR8[Math.round(state.face/45) % 8];
+if (state.hideFar) camBehindObserver();
+syncSeason();
 syncTools();
 resize();
 
@@ -1100,6 +1538,7 @@ function loop(now) {
   last = now;
   if (state.playing) state.t = (state.t + dt * state.speed * 12) % 360;
   draw();
+  if (state.plan) drawPlan();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
